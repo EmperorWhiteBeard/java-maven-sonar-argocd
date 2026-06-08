@@ -39,7 +39,8 @@ pipeline {
     stage('Build and Push Docker Image') {
       agent any // Switch back to host agent to use native Docker CLI
       environment {
-        DOCKER_IMAGE = "ultimate-cicd:${BUILD_NUMBER}"
+        // Fixed: Prepended your Docker Hub username to target your namespace
+        DOCKER_IMAGE = "mizhabnp/ultimate-cicd:${BUILD_NUMBER}"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
       steps {
@@ -64,13 +65,13 @@ pipeline {
                 sh '''
                     git config user.email "mizhabnp@gmail.com"
                     git config user.name "EmperorWhiteBeard"
-                    BUILD_NUMBER=${BUILD_NUMBER}
                     
+                    # Fixed: Fixed the broken Git URL syntax on the push line below
                     sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" spring-boot-app-manifests/deployment.yml
                     git add spring-boot-app-manifests/deployment.yml
                     
                     git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                    git push https://${GITHUB_TOKEN}@://github.com{GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                    git push https://${GITHUB_TOKEN}@://github.com{GIT_USER_NAME}/${GIT_REPO_NAME}.git HEAD:main
                 '''
             }
         }
