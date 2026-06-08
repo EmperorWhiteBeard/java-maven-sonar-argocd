@@ -1,44 +1,49 @@
 pipeline {
-  agent any // Runs directly on the host where Docker is fully installed and working
+  agent none // Defined individually per stage to maximize control
   
   stages {
     stage('Checkout') {
+      agent any
       steps {
         sh 'echo passed'
       }
     }
     
     stage('Build and Test') {
-      steps {
-        // Run Maven inside a clean public container just for this compilation step
-        docker.image('maven:3.9.6-eclipse-temurin-17').inside {
-            sh 'cd spring-boot-app && mvn clean package'
+      agent {
+        docker {
+          image 'maven:3.9.6-eclipse-temurin-17'
         }
+      }
+      steps {
+        sh 'cd spring-boot-app && mvn clean package'
       }
     }
 
     stage('Static Code Analysis') {
+      agent {
+        docker {
+          image 'maven:3.9.6-eclipse-temurin-17'
+        }
+      }
       environment {
         SONAR_URL = "http://43.205.113.104:9000"
       }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          // Run SonarQube analysis inside the same clean maven container
-          docker.image('maven:3.9.6-eclipse-temurin-17').inside {
-              sh 'cd spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
-          }
+          sh 'cd spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
         }
       }
     }
 
     stage('Build and Push Docker Image') {
+      agent any // Switch back to host agent to use native Docker CLI
       environment {
         DOCKER_IMAGE = "ultimate-cicd:${BUILD_NUMBER}"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
       steps {
         script {
-          // Runs perfectly now because it uses the host's native Docker engine directly
           sh 'cd spring-boot-app && docker build -t ${DOCKER_IMAGE} .'
           def dockerImage = docker.image("${DOCKER_IMAGE}")
           docker.withRegistry('https://docker.io', "docker-cred") {
@@ -49,6 +54,7 @@ pipeline {
     }
 
     stage('Update Deployment File') {
+        agent any
         environment {
             GIT_REPO_NAME = "java-maven-sonar-argocd"
             GIT_USER_NAME = "EmperorWhiteBeard"
@@ -71,4 +77,3 @@ pipeline {
     }
   }
 }
-
